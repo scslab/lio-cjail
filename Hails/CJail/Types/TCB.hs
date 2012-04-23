@@ -17,13 +17,10 @@ module Hails.CJail.Types.TCB ( -- * CJail monad
                              , CJail(..)
                              , getCJailConf
                              , runCJail
-                             -- ** Guard against \'\\b\' jail escape
-                             , guardCmd, guardMany
+                             , confToCmdArgs
                              ) where
 
 import LIO
-import LIO.MonadCatch
-import LIO.TCB (ioTCB)
 import Control.Monad.Reader
 
 
@@ -59,11 +56,8 @@ getCJailConf = CJail ask
 runCJail :: LabelState l p s => CJailConf -> CJail l p s a -> LIO l p s a
 runCJail conf m = runReaderT (unCJail m) conf
 
--- | Throw uncatchable exception if the command contains \'\\b\'
-guardCmd :: LabelState l p s => String -> LIO l p s ()
-guardCmd s = when ('\b' `elem` s) $ 
-  ioTCB . throwIO . userError $ "Command has \'\\b\': DIE!"
-
--- | Throw uncatchable exception if element of the list contains \'\\b\'
-guardMany :: LabelState l p s => [String] -> LIO l p s ()
-guardMany = mapM_ guardCmd
+-- | Convertconfiguration to pair of command and arguments.
+confToCmdArgs :: CJailConf -> (String, [String])
+confToCmdArgs conf = ("cjail", filter (not . null) [u,t,cjDir conf])
+  where u = maybe ""  ("--user "++) (cjUser conf)
+        t = maybe ""  (("--timeout "++) . show) (cjTimeout conf)

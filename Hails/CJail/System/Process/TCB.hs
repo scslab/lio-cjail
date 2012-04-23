@@ -24,11 +24,8 @@ module Hails.CJail.System.Process.TCB ( -- * Running sub-processes
                                       , ProcessHandle
                                       , LProcessHandle(..)
                                       -- ** Specific variants of createProcess
-                                      , runInteractiveCommand
-                                      , runInteractiveProcess
                                       , readProcess
                                       , readProcessWithExitCode
-                                      , system
                                       -- * Process completion
                                       , waitForProcess, waitForProcessP
                                       , getProcessExitCode, getProcessExitCodeP
@@ -56,7 +53,7 @@ import qualified System.Process as P
 -- | Data structure specifying how a command should be created
 data CreateProcess = CreateProcess 
   { cmdspec :: CmdSpec
-  -- ^ Executable and arguments, or shell command
+  -- ^ Executable and arguments, or BASH shell command
   , cwd     :: Maybe FilePath
   -- ^ Optional path to the working directory 
   , env     :: [(String, String)]
@@ -115,11 +112,11 @@ instance Show CmdSpec where
 -- or write and read from (same) temporary file with @cat@:
 --
 -- > ex :: LabelState l p s => LIO l p s L8.ByteString
--- > ex = runCJail (CJailConf Nothing Nothing "/opt/cjail/git-pdf") $ do
+-- > ex = runCJail (CJailConf Nothing Nothing "/opt/cjail/app0-jail") $ do
 -- >       lph <- createProcess (shell "cat > /tmp/xxx ; cat /tmp/xxx")
 -- >       liftLIO $ hPutStrLn (stdIn lph) (L8.pack "hello jail")
 -- >       liftLIO $ hClose (stdIn lph)
--- >       liftLIO $ closeHandles lph
+-- >       liftLIO $ hGetContents $ stdOut lph
 --
 -- Note that both of these examples use Lazy IO and thus the handles
 -- are not closed. More appropriately, the result from the jailed
@@ -129,7 +126,7 @@ instance Show CmdSpec where
 --
 -- > sort :: LabelState l p s => [Int] -> LIO l p s [Int]
 -- > sort ls = do
--- >   lph <- runCJail (CJailConf Nothing Nothing "/opt/cjail/git-pdf") $
+-- >   lph <- runCJail (CJailConf Nothing Nothing "/opt/cjail/splint-web") $
 -- >            createProcess (proc "sort" ["-n"])
 -- >   let input = L8.pack . intercalate "\n" . map show $ ls
 -- >   hPut (stdIn lph) input
@@ -148,7 +145,6 @@ instance Show CmdSpec where
 createProcess :: LabelState l p s
               => CreateProcess -> CJail l p s (LProcessHandle l)
 createProcess cp = do
-  liftLIO . guardCmd . show . cmdspec $ cp
   conf <- getCJailConf
   liftLIO $ do
     l <- getLabel
@@ -167,42 +163,6 @@ createProcess cp = do
                          throwIO $ userError 
                             "createProcess could not create standard handles"
 
--- | Run command using the shell. Handles are initially in binary mode.
-runInteractiveCommand :: LabelState l p s
-                      => String -> CJail l p s (LProcessHandle l)
-runInteractiveCommand cmd = do
-  liftLIO $ guardCmd cmd
-  conf <- getCJailConf
-  liftLIO $ do
-    l <- getLabel
-    (h0, h1, h2, ph) <- rtioTCB $ P.runInteractiveCommand $ show conf ++ cmd
-    return LProcessHandle { stdIn  = LHandleTCB l h0
-                          , stdOut = LHandleTCB l h1
-                          , stdErr = LHandleTCB l h2
-                          , processHandle = labelTCB l ph }
-
--- | Run a raw command. Handles are initially in binary mode.
-runInteractiveProcess :: LabelState l p s
-                      => FilePath           -- ^ Executable
-                      -> [String]           -- ^ Arguments
-                      -> Maybe FilePath     -- ^ Optional current working dir
-                      -> [(String, String)] -- ^ Environment
-                      -> CJail l p s (LProcessHandle l)
-runInteractiveProcess exe args mpath e = do
-  liftLIO $ do guardMany (exe : args)
-               maybe (return ()) guardCmd $ mpath
-  conf <- getCJailConf
-  liftLIO $ do
-    l <- getLabel
-    (h0, h1, h2, ph) <- rtioTCB $ P.runInteractiveProcess (show conf ++ exe)
-                                                          args
-                                                          mpath
-                                                          (Just e)
-    return LProcessHandle { stdIn  = LHandleTCB l h0
-                          , stdOut = LHandleTCB l h1
-                          , stdErr = LHandleTCB l h2
-                          , processHandle = labelTCB l ph }
-
 -- | Fork an external process and read it standard output strictly,
 -- blocking until the process terminates and retuns an output string.
 -- The function throws an 'IOError' if the exit code is not 'ExitSuccess'
@@ -213,10 +173,11 @@ readProcess :: LabelState l p s
             -> [String]            -- ^ Arguments
             -> String              -- ^ Standard input
             -> CJail l p s String  -- ^ Standard output
-readProcess exe args stdin = do
-  liftLIO $ guardMany (exe : args)
+readProcess exe exeArgs stdin = do
   conf <- getCJailConf
-  liftLIO $ rtioTCB $ P.readProcess (show conf ++ exe) args stdin
+  let (cjail, cjailArgs) = confToCmdArgs conf
+      args = cjailArgs ++ (exe : exeArgs)
+  liftLIO $ rtioTCB $ P.readProcess cjail args stdin
 
 -- | Same as 'readProcess', but returns the exit code explicitly, and
 -- strictly reads standard error.
@@ -225,20 +186,11 @@ readProcessWithExitCode :: LabelState l p s
   -> [String]            -- ^ Arguments
   -> String              -- ^ Standard input
   -> CJail l p s (ExitCode, String, String)  -- ^ (exit code, stdout, stderr)
-readProcessWithExitCode exe args stdin = do
-  liftLIO $ guardMany (exe : args)
+readProcessWithExitCode exe exeArgs stdin = do
   conf <- getCJailConf
-  liftLIO $ rtioTCB $ P.readProcessWithExitCode (show conf ++ exe) args stdin
-
--- | Computation @system cmd@ returns the exit code produced when
--- running shell command. Note that standard output and standard error
--- are redirected to @/dev/null/@.
-system :: LabelState l p s => String -> CJail l p s ExitCode
-system cmd = do
-  liftLIO $ guardCmd cmd
-  conf <- getCJailConf
-  liftLIO $ rtioTCB $ P.system $
-    show conf ++ cmd ++ " >& /dev/null"
+  let (cjail, cjailArgs) = confToCmdArgs conf
+      args = cjailArgs ++ (exe : exeArgs)
+  liftLIO $ rtioTCB $ P.readProcessWithExitCode cjail args stdin
 
 --
 -- Process completion
@@ -311,14 +263,20 @@ closeHandlesP p' lph = withCombinedPrivs p' $ \p ->
 
 -- | Make a @CreateProcess@ value usable by "System.Process"
 mkCreateProcess :: CJailConf -> CreateProcess -> P.CreateProcess
-mkCreateProcess conf cp = P.CreateProcess 
-  { P.cmdspec      = ShellCommand $ show conf ++ show (cmdspec cp)
-  , P.cwd          = cwd cp
-  , P.env          = Just $ env cp
-  , P.std_in       = P.CreatePipe
-  , P.std_out      = P.CreatePipe
-  , P.std_err      = P.CreatePipe
-  , P.close_fds    = True
-  , P.create_group = False }
+mkCreateProcess conf cp =
+  let (cjail, cjailArgs) = confToCmdArgs conf
+  in P.CreateProcess 
+        { P.cmdspec      = RawCommand cjail $
+                              cjailArgs ++ cmdSpecToArgs (cmdspec cp)
+        , P.cwd          = cwd cp
+        , P.env          = Just $ env cp
+        , P.std_in       = P.CreatePipe
+        , P.std_out      = P.CreatePipe
+        , P.std_err      = P.CreatePipe
+        , P.close_fds    = True
+        , P.create_group = False }
 
-
+-- | Conver 'CmdSpec' to list of arguments to @cjail@
+cmdSpecToArgs :: CmdSpec -> [String]
+cmdSpecToArgs (ShellCommand s) = ["bash", "-c", s]
+cmdSpecToArgs (RawCommand fp s) = fp :s

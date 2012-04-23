@@ -12,11 +12,8 @@ module Hails.CJail.System.Process ( -- * Running sub-processes
                                   , LProcessHandle
                                   , stdIn, stdOut, stdErr, processHandle
                                   -- ** Specific variants of createProcess
-                                  , runInteractiveCommand
-                                  , runInteractiveProcess
                                   , readProcess
                                   , readProcessWithExitCode
-                                  , system
                                   -- * Process completion
                                   , waitForProcess, waitForProcessP
                                   , getProcessExitCode, getProcessExitCodeP
