@@ -115,7 +115,7 @@ instance Show CmdSpec where
 -- or write and read from (same) temporary file with @cat@:
 --
 -- > ex :: LabelState l p s => LIO l p s L8.ByteString
--- > ex = runCJail (CJailConf Nothing Nothing "/opt/cjail/git-pdf") $ do
+-- > ex = runCJail (CJailConf Nothing Nothing "/opt/cjail/app0-jail") $ do
 -- >       lph <- createProcess (shell "cat > /tmp/xxx ; cat /tmp/xxx")
 -- >       liftLIO $ hPutStrLn (stdIn lph) (L8.pack "hello jail")
 -- >       liftLIO $ hClose (stdIn lph)
@@ -129,7 +129,7 @@ instance Show CmdSpec where
 --
 -- > sort :: LabelState l p s => [Int] -> LIO l p s [Int]
 -- > sort ls = do
--- >   lph <- runCJail (CJailConf Nothing Nothing "/opt/cjail/git-pdf") $
+-- >   lph <- runCJail (CJailConf Nothing Nothing "/opt/cjail/app0-jail") $
 -- >            createProcess (proc "sort" ["-n"])
 -- >   let input = L8.pack . intercalate "\n" . map show $ ls
 -- >   hPut (stdIn lph) input
