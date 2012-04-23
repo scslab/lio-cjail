@@ -1,0 +1,43 @@
+Name:           hails-cjail
+Version:        0.1
+build-type:     Simple
+License:        GPL-2
+License-File:   LICENSE
+Author:         HAILS team
+Maintainer:     Deian Stefan  <deian at cs dot stanford dot edu>
+Stability:      experimental
+Synopsis:       Bindings for the Arch linux cjail 
+Category:       Security
+Cabal-Version:  >= 1.6
+
+Description:
+        This library provides a process-like inteface for executing
+        arbitrary code in a jail (using the cjail program) using an
+        LIO monad transformer.
+
+        Currently only Arch linux is supported. You should install
+        cjail from: 
+        
+        git clone <http://www.github.com/scslab/cjail.git>
+          
+
+Source-repository head
+  Type:     git
+  Location: http://www.github.com/scslab/hails-cjail.git
+
+Library
+  Build-Depends: base >= 4.5 && < 5,
+                 containers >= 0.4.2 && < 0.5,
+                 bytestring >= 0.9 && < 1,
+                 mtl >= 2.0 && < 2.1,
+                 process >= 1.1.0.1 && < 1.2,
+                 lio >= 0.1.4 && < 0.2
+
+  ghc-options: -Wall -Werror -fno-warn-orphans
+
+  Exposed-modules:
+    Hails.CJail
+    Hails.CJail.Types
+    Hails.CJail.System.Process
+    Hails.CJail.Types.TCB
+    Hails.CJail.System.Process.TCB
