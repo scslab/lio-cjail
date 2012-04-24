@@ -58,6 +58,6 @@ runCJail conf m = runReaderT (unCJail m) conf
 
 -- | Convertconfiguration to pair of command and arguments.
 confToCmdArgs :: CJailConf -> (String, [String])
-confToCmdArgs conf = ("cjail", u ++ t ++ [cjDir conf])
+confToCmdArgs conf = ("cjail", u ++ t ++ ["--", cjDir conf])
   where u = maybe [] (\x -> ["--user",x]) $ cjUser conf
         t = maybe [] (\x -> ["--timeout", show x ]) $ cjTimeout conf
