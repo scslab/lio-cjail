@@ -29,7 +29,7 @@ Library
   Build-Depends: base >= 4.5 && < 5,
                  containers >= 0.4.2 && < 0.5,
                  bytestring >= 0.9 && < 1,
-                 mtl >= 2.0 && < 2.1,
+                 mtl >= 1.1.0.2 && < 3,
                  process >= 1.1.0.1 && < 1.2,
                  lio >= 0.1.4 && < 0.2
 
