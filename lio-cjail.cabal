@@ -25,7 +25,7 @@ Library
     base        >= 4.5 && < 5
    ,mtl         >= 2.0
    ,containers  >= 0.4.2
-   ,bytestring  >= 0.9
+   ,bytestring  >= 0.10
    ,process     >= 1.1.0.1
    ,lio         >= 0.9.2.2
    ,cjail       >= 0.1
